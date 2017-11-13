@@ -116,6 +116,7 @@ class Window(QMainWindow):
         self.plot_zone.scene().contextMenu = None
 
 # Create Bars
+# TODO Add Info button
     def createBars(self):
         # Create Bar1
         controls_toolbar = self.addToolBar("Controls")
@@ -179,10 +180,8 @@ class Window(QMainWindow):
 # Update arduino list
     def updateDevicesList(self):
         device_list = serial.tools.list_ports.comports()
-#        print (self.arduino_combobox.currentText())
         current_arduino = self.arduino_combobox.currentText()
         self.arduino_combobox.clear()
-#TODO Add counter to get index setCurrentIndex
         device_index = 0
         for device in sorted(device_list):
             self.arduino_combobox.addItem(device.device)
@@ -261,9 +260,7 @@ class Window(QMainWindow):
         else:
             self.timer_label.setText(" " + '0' + ':' + str(time_to_display))
 
-# TODO removed from here
-
-# Call myself as fast as set on configurations
+# Call myself every 50milliseconds
         timer = QTimer()
         timer.singleShot(50, self.update)
 
@@ -307,8 +304,8 @@ class Window(QMainWindow):
                     list_y = y_arr[pair[0]:pair[1]]
 
                     for elem in zip(list_x, list_y):
-# TODO change separator
-                        file.write(str(elem[0]) + ' ' + str(elem[1]) + '\n')
+# TODO Check if separator works
+                        file.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
                 file.close()
                 self.file_saved = True
         except (IOError, OSError) as error_file:
@@ -347,7 +344,7 @@ class ReadSerialThread(QThread):
     def __init__(self, current_arduino, serial_baud, parent=None):
         QThread.__init__(self, parent)
         self.current_arduino = current_arduino
-        self.seria_baud = serial_baud
+        self.serial_baud = serial_baud
 
 # Destroy Thread
     def __del__(self):
@@ -359,13 +356,11 @@ class ReadSerialThread(QThread):
             try:
                 try:
                     # Waits input for 1 sec
-                    self.serial_connection = serial.Serial(unicode(self.current_arduino), self.seria_baud, timeout=1)
+                    self.serial_connection = serial.Serial(unicode(self.current_arduino), self.serial_baud, timeout=1)
                     self.readSerialData()
 
                 except serial.SerialException:
-                    time.sleep(5)
-
-
+                    time.sleep(2)
 
 #                    print (x_arr)
 #                    print (y_arr)
@@ -382,7 +377,6 @@ class ReadSerialThread(QThread):
             mutex.unlock()
             while True:
                 # Read arduino data from serial
-
                 serial_data = self.serial_connection.readline()
                 mutex.lock()
                 try:
@@ -395,7 +389,6 @@ class ReadSerialThread(QThread):
                         x_arr.extend([0.5])
                     else:
                         #x_arr.append(x_arr[-1:][0] + 0.5)
-
                         x_arr.extend([x_arr[-1:][0] + 0.5])
 #                    print (x_arr[-1:], serial_data)
                 except ValueError:
@@ -424,7 +417,6 @@ class ReadSerialThread(QThread):
         except serial.SerialException:
             print "close"
             mutex.lock()
-#           print 'err2'
             self.serial_connection.close()
             arduino_connected = False
             #time_got = time.time() - time_start
@@ -432,7 +424,8 @@ class ReadSerialThread(QThread):
             #y_arr.append(0)
             mutex.unlock()
 
-# Settings dialog class
+# Settings dialog class, settings is dictionary with settings values, callback
+# is used to applay settings
 class SettingsDialog(QDialog):
     def __init__(self, settings, callback, parent=None):
         super(SettingsDialog, self).__init__(parent)
@@ -480,11 +473,8 @@ class SettingsDialog(QDialog):
 
         self.serial_baud_label = QLabel('Serial Baud')
         self.serial_baud_edit = QLineEdit()
-        #self.serial_baud_edit.setRange(0.00, 500.00)
-        #self.serial_baud_edit.setSingleStep(0.5)
         self.serial_baud_edit.setText(str(self.settings['serialBaud']))
         self.serial_baud_edit.setValidator(QRegExpValidator(numeric_reg, self))
-        #self.serial_baud_edit.setFocusPolicy(Qt.NoFocus)
 
         self.separator_label = QLabel('Separator')
         self.separator_edit = QLineEdit()
@@ -494,6 +484,7 @@ class SettingsDialog(QDialog):
         self.buttonBox = QDialogButtonBox(QDialogButtonBox.Apply|
                                           QDialogButtonBox.Close|QDialogButtonBox.RestoreDefaults)
 
+# Connect elements to their events
     def createConnections(self):
         self.buttonBox.button(QDialogButtonBox.Apply).clicked.connect(self.apply)
         self.buttonBox.button(QDialogButtonBox.Apply).setDefault(True)
@@ -503,6 +494,7 @@ class SettingsDialog(QDialog):
         self.buttonBox.button(QDialogButtonBox.RestoreDefaults).setDefault(False)
         self.buttonBox.button(QDialogButtonBox.RestoreDefaults).setAutoDefault(False)
 
+# Add elements to the GUI
     def addWidgets(self):
         grid = QGridLayout()
         grid.addWidget(self.line_width_label, 0, 0)
@@ -523,8 +515,8 @@ class SettingsDialog(QDialog):
 
         self.setLayout(grid)
 
+# Apply new Settings
     def apply(self):
-# Seems useless
 #        dict(plotLineWidth=1, horizontalGrid=True, verticalGrid=True, gridOpacity=1, lineColor='b',
 #             arrayPlotSize=25, updatePlotTime=1)
         self.settings['plotLineWidth'] = int(self.line_width_edit.text())
@@ -539,6 +531,7 @@ class SettingsDialog(QDialog):
             self.settings['separator'] = unicode(self.separator_edit.text())
         self.callback()
 
+# Restores default settings values
     def restore_defaults(self):
         default_values = dict(plotLineWidth=1, horizontalGrid=True, verticalGrid=True, gridOpacity=1, lineColor='b',
              arrayPlotSize=25, serialBaud=115200, separator=' ')
