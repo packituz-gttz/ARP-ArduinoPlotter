@@ -1,21 +1,20 @@
+# Import Icons
+# Import time for x axis
+import time
+import qrc_resources
+# Import Graphics Library
+import pyqtgraph as pg
+# TODO pause recording when saving data?
+# Import for reading Arduino
+import serial
+# Import device list library
+import serial.tools.list_ports
 from PyQt4.QtCore import (QThread, QTimer, QMutex, QRegExp, Qt, QSettings, QVariant)
 from PyQt4.QtGui import (QFileDialog, QGridLayout, QWidget,
                          QMainWindow, QAction, QIcon, QKeySequence,
                          QVBoxLayout, QLabel, QDialog, QDialogButtonBox,
                          QLineEdit, QCheckBox, QRegExpValidator, QFrame,
                          QDoubleSpinBox, QComboBox, QMessageBox)
-
-# TODO pause recording when saving data?
-# Import for reading Arduino
-import serial
-# Import Graphics Library
-import pyqtgraph as pg
-# Import Icons
-import qrc_resources
-# Import time for x axis
-import time
-# Import device list library
-import serial.tools.list_ports
 
 # Global vars
 mutex = QMutex()
