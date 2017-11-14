@@ -5,6 +5,7 @@ import qrc_resources
 # Import Graphics Library
 import pyqtgraph as pg
 # TODO pause recording when saving data?
+# TODO reset time (x axis) when recording & refresh plot
 # Import for reading Arduino
 import serial
 # Import device list library
@@ -23,6 +24,7 @@ x_arr = []
 y_arr = []
 arduino_connected = False
 
+
 # Main Windows
 class Window(QMainWindow):
     def __init__(self, parent=None):
@@ -30,7 +32,7 @@ class Window(QMainWindow):
         global time_start, x_arr, y_arr, arduino_connected
 # Flag variables
         self.filename = ''
-        self.clean_recorded_data = False
+        self.clean_recorded_data = True
         self.recording_status = False
         self.file_saved = False
         self.recorded_list = []
@@ -84,7 +86,7 @@ class Window(QMainWindow):
                                                               self.plot_settings['serialBaud']).toInt()[0]
         self.plot_settings['separator'] = settings.value("separator", self.plot_settings['separator']).toString()
 
-
+# Save settings values
     def closeEvent(self, event):
         settings = QSettings()
         settings.setValue('horizontalGrid', QVariant(self.plot_settings['horizontalGrid']))
@@ -108,9 +110,9 @@ class Window(QMainWindow):
         # self.plot_zone.plotItem.ctrlMenu
         # self.plot_zone.plotItem.enableAutoRange(enable=0.2)
         # self.plot_zone.autoRange()
-        self.plot_zone.setXRange(0,400)
+        self.plot_zone.setXRange(0, 400)
         # self.plot_zone.setLabels(left=('Signal', 'V'), bottom=('Time'))
-        # self.plot_zone.setYRange(0,5)
+        self.plot_zone.setYRange(0, 5)
 #        self.plot_zone.setMouseEnabled(x=False)
         self.plot_zone.scene().contextMenu = None
 
@@ -172,9 +174,21 @@ class Window(QMainWindow):
         self.timer_label = QLabel()
         self.timer_label.setText(' 00:00')
 
+        # Info button for dialog
+        self.info = QAction(QIcon(":/info.png"), "Reload", self)
+        self.info.setShortcut(QKeySequence.HelpContents)
+        self.info.setToolTip('Help')
+        self.info.triggered.connect(self.showInfo)
+
         arduino_toolbar.addWidget(self.arduino_combobox)
         arduino_toolbar.addAction(self.reload)
         arduino_toolbar.addWidget(self.timer_label)
+        arduino_toolbar.addAction(self.info)
+
+# Show Info(Help) dialog
+    def showInfo(self):
+        self.info_dialog = InfoDialog(self)
+        self.info_dialog.show()
 
 # Update arduino list
     def updateDevicesList(self):
@@ -209,6 +223,8 @@ class Window(QMainWindow):
         if self.clean_recorded_data:
             mutex.lock()
             del self.recorded_list[:]
+            del x_arr[:]
+            del y_arr[:]
             self.clean_recorded_data = False
             mutex.unlock()
 
@@ -297,19 +313,19 @@ class Window(QMainWindow):
         global x_arr, y_arr
         try:
             if self.filename:
-                file = open(self.filename, open_mode)
+                file_obj = open(self.filename, open_mode)
                 for pair in self.recorded_list:
                     list_x = x_arr[pair[0]:pair[1]]
                     list_y = y_arr[pair[0]:pair[1]]
 
                     for elem in zip(list_x, list_y):
-# TODO Check if separator works
-                        file.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
-                file.close()
+#                       TODO Check if separator works
+                        file_obj.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
+                file_obj.close()
                 self.file_saved = True
         except (IOError, OSError) as error_file:
             message = QMessageBox.critical(self, 'Message', str(error_file), QMessageBox.Ok)
-            #message.show()
+#           message.show()
             self.filename = ''
             self.file_saved = False
 
@@ -332,6 +348,7 @@ class Window(QMainWindow):
         mutex.lock()
         del x_arr[:]
         del y_arr[:]
+        del self.recorded_list[:]
         mutex.unlock()
         self.read_serial_thread = ReadSerialThread(self.arduino_combobox.currentText(),
                                                    self.plot_settings['serialBaud'], self)
@@ -422,6 +439,7 @@ class ReadSerialThread(QThread):
             #x_arr.append(time_got)
             #y_arr.append(0)
             mutex.unlock()
+
 
 # Settings dialog class, settings is dictionary with settings values, callback
 # is used to applay settings
@@ -543,3 +561,27 @@ class SettingsDialog(QDialog):
         self.line_color_combo.setCurrentIndex(0)
         self.serial_baud_edit.setText(str(self.settings['serialBaud']))
         self.separator_edit.setText(self.settings['separator'])
+
+
+class InfoDialog(QDialog):
+    def __init__(self, parent=None):
+        super(InfoDialog, self).__init__(parent)
+        self.createWidgets()
+        self.addWidgets()
+
+    def createWidgets(self):
+        self.title_label = QLabel('Arduino ARP Plotter, written in Python2.7 and PyQT')
+        self.programmer_label = QLabel('Programmer: Francisco Rafael Huesca Morales')
+        self.programmer_email_label = QLabel('Email: pacohm94@gmail.com')
+        self.rights = QLabel("Copyright 2017")
+        self.github = QLabel('<a href="https://github.com/packituz-gttz/ARP-ArduinoPlotter">Github</a>')
+        self.github.setOpenExternalLinks(True)
+
+    def addWidgets(self):
+        grid = QGridLayout()
+        grid.addWidget(self.title_label, 0, 0)
+        grid.addWidget(self.programmer_label, 1, 0)
+        grid.addWidget(self.programmer_email_label, 2, 0)
+        grid.addWidget(self.rights, 3, 0)
+        grid.addWidget(self.github, 4, 0)
+        self.setLayout(grid)
