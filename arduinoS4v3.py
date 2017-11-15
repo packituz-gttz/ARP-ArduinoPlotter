@@ -5,12 +5,12 @@ import qrc_resources
 # Import Graphics Library
 import pyqtgraph as pg
 # TODO pause recording when saving data?
-# TODO reset time (x axis) when recording & refresh plot
+# TODO reset time (x axis) when recording & refresh plot (done but needs code revision)
 # Import for reading Arduino
 import serial
 # Import device list library
 import serial.tools.list_ports
-from PyQt4.QtCore import (QThread, QTimer, QMutex, QRegExp, Qt, QSettings, QVariant)
+from PyQt4.QtCore import (QThread, QTimer, QMutex, QRegExp, Qt, QSettings, QVariant, QRectF)
 from PyQt4.QtGui import (QFileDialog, QGridLayout, QWidget,
                          QMainWindow, QAction, QIcon, QKeySequence,
                          QVBoxLayout, QLabel, QDialog, QDialogButtonBox,
@@ -32,6 +32,8 @@ class Window(QMainWindow):
         global time_start, x_arr, y_arr, arduino_connected
 # Flag variables
         self.filename = ''
+        self.array_len = len(x_arr)
+        self.range_x = 432.57
         self.clean_recorded_data = True
         self.recording_status = False
         self.file_saved = False
@@ -110,7 +112,7 @@ class Window(QMainWindow):
         # self.plot_zone.plotItem.ctrlMenu
         # self.plot_zone.plotItem.enableAutoRange(enable=0.2)
         # self.plot_zone.autoRange()
-        self.plot_zone.setXRange(0, 400)
+        self.plot_zone.setXRange(0, 600)
         # self.plot_zone.setLabels(left=('Signal', 'V'), bottom=('Time'))
         self.plot_zone.setYRange(0, 5)
 #        self.plot_zone.setMouseEnabled(x=False)
@@ -225,6 +227,16 @@ class Window(QMainWindow):
             del self.recorded_list[:]
             del x_arr[:]
             del y_arr[:]
+            self.array_len = 0
+            width_visible = self.plot_zone.visibleRange().width()
+            height_visible = self.plot_zone.visibleRange().height()
+            bottom_visible = self.plot_zone.visibleRange().top()
+            # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
+            # print self.plot_zone.visibleRange()
+            rect_me = QRectF(0, 0, width_visible, 5)
+            self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
+                                    xRange=(0, (0 + width_visible)), padding=0,
+                                    yRange=(bottom_visible, bottom_visible + height_visible))
             self.clean_recorded_data = False
             mutex.unlock()
 
@@ -256,13 +268,50 @@ class Window(QMainWindow):
 # Update Arduino status and plot
     def update(self):
         global x_arr, y_arr, arduino_connected
+#        self.plot_zone.sceneObj.sigMouseHover.connect(self.me)
         if arduino_connected:
             self.sizeLabel.setText('Arduino Connected')
             self.sizeLabel.setStyleSheet('color:green')
             mutex.lock()
-            if not len(x_arr) % self.plot_settings['arrayPlotSize']:
+            print ("dasdasd",len(x_arr))
+            print ("self", self.array_len)
+            #if not len(x_arr) % self.plot_settings['arrayPlotSize'] and len(x_arr) != 0:
+            #print self.array_len
+            if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
+                self.array_len = len(x_arr)
+                print "ININ"
                 self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
                                     y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
+                #self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
+                if x_arr[-1:][0] > self.plot_zone.visibleRange().right():
+                    width_visible = self.plot_zone.visibleRange().width()
+                    height_visible = self.plot_zone.visibleRange().height()
+                    bottom_visible = self.plot_zone.visibleRange().top()
+                    # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
+                    print self.plot_zone.visibleRange()
+                    rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
+                    #print rect_me
+                    #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
+                    #self.plot_zone.setRange()
+                    #print "MOVE"
+                    #print bottom_visible
+                    #print height_visible
+                    dest = self.plot_zone.visibleRange().width()
+                    #print range_x
+                    #print dest
+                    #print x_arr[-1:][0]
+                    self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
+                                            xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
+                                            yRange=(bottom_visible, bottom_visible + height_visible))
+                    #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
+
+                    #self.plot_zone.sceneObj.mouseMoveEvent(3)
+                    #print self.plot_zone.visibleRange()
+                    range_me = self.plot_zone.visibleRange()
+
+
+                    #self.plot_zone.sigRangeChanged.connect(self.me)
+                    #self.plot_zone.sigYRangeChanged.connect(self.me)
             mutex.unlock()
         else:
             self.sizeLabel.setText('Arduino Disconnected')
@@ -277,7 +326,10 @@ class Window(QMainWindow):
 
 # Call myself every 50milliseconds
         timer = QTimer()
-        timer.singleShot(50, self.update)
+        timer.singleShot(100, self.update)
+
+#    def me(self):
+#        print "me"
 
 # Stops recording
     def stopRecording(self):
@@ -346,10 +398,23 @@ class Window(QMainWindow):
         print ('killing')
         self.read_serial_thread.__del__()
         mutex.lock()
+        self.array_len = 0
         del x_arr[:]
         del y_arr[:]
+        #print x_arr
         del self.recorded_list[:]
+        #print "clean"
+        width_visible = self.plot_zone.visibleRange().width()
+        height_visible = self.plot_zone.visibleRange().height()
+        bottom_visible = self.plot_zone.visibleRange().top()
+        # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
+        #print self.plot_zone.visibleRange()
+        rect_me = QRectF(0, 0, width_visible, 5)
+        self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
+                                xRange=(0, (0 + width_visible)), padding=0,
+                                yRange=(bottom_visible, bottom_visible + height_visible))
         mutex.unlock()
+        #print  "clean out"
         self.read_serial_thread = ReadSerialThread(self.arduino_combobox.currentText(),
                                                    self.plot_settings['serialBaud'], self)
         self.read_serial_thread.start()
@@ -402,10 +467,10 @@ class ReadSerialThread(QThread):
 #                    print serial_data
                     if not x_arr:
                         #x_arr.append(0.5)
-                        x_arr.extend([0.5])
+                        x_arr.extend([0.1])
                     else:
                         #x_arr.append(x_arr[-1:][0] + 0.5)
-                        x_arr.extend([x_arr[-1:][0] + 0.5])
+                        x_arr.extend([x_arr[-1:][0] + 0.1])
 #                    print (x_arr[-1:], serial_data)
                 except ValueError:
                     pass
