@@ -1,0 +1,13 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+<file alias="rec.png">myImages/red-recording-button-icon-17932.png</file>
+<file alias="pause.png">myImages/player-pause-icon-23939.png</file>
+<file alias="configs.png">myImages/gear-icon-9337.png</file>
+<file alias="stop.png">myImages/stop-button-icon-13050.png</file>
+<file alias="save.png">myImages/save--save-icon-32310.png</file>
+<file alias="save_as.png">myImages/save-icon-53221.png</file>
+<file alias="reload.png">myImages/box-plot.png</file>
+<file alias="window_icon.png">myImages/window-icon.png</file>
+<file alias="info.png">myImages/info.png</file>
+</qresource>
+</RCC>
