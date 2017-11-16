@@ -34,7 +34,6 @@ class Window(QMainWindow):
 # Flag variables
         self.filename = ''
         self.array_len = len(x_arr)
-        self.range_x = 432.57
         self.clean_recorded_data = True
         self.recording_status = False
         self.file_saved = False
@@ -106,7 +105,7 @@ class Window(QMainWindow):
 # Plot Creation
     def createPlot(self):
         self.plot_zone = pg.PlotWidget()
-        self.pen = pg.mkPen(width=self.plot_settings['plotLineWidth'], color=self.plot_settings['lineColor'])
+        self.pen = pg.mkPen(width=self.plot_settings['plotLineWidth'], color=self.plot_settings['lineColor'][0])
         self.plot_zone.plotItem.showGrid(self.plot_settings['verticalGrid'], self.plot_settings['horizontalGrid'],
                                         self.plot_settings['gridOpacity'])
         self.plot_zone.plotItem.ctrlMenu = None
@@ -316,7 +315,7 @@ class Window(QMainWindow):
                         #print "MOVE"
                         #print bottom_visible
                         #print height_visible
-                        dest = self.plot_zone.visibleRange().width()
+                        #dest = self.plot_zone.visibleRange().width()
                         #print range_x
                         #print dest
                         #print x_arr[-1:][0]
@@ -327,7 +326,7 @@ class Window(QMainWindow):
 
                         #self.plot_zone.sceneObj.mouseMoveEvent(3)
                         #print self.plot_zone.visibleRange()
-                        range_me = self.plot_zone.visibleRange()
+                        #range_me = self.plot_zone.visibleRange()
 
 
                     #self.plot_zone.sigRangeChanged.connect(self.me)
@@ -350,9 +349,6 @@ class Window(QMainWindow):
 # Call myself every 50milliseconds
         timer = QTimer()
         timer.singleShot(100, self.update)
-
-#    def me(self):
-#        print "me"
 
 # Stops recording
     def stopRecording(self):
@@ -411,7 +407,7 @@ class Window(QMainWindow):
 
 # Refresh settings
     def refreshSettings(self):
-        self.pen = pg.mkPen(width=self.plot_settings['plotLineWidth'], color=self.plot_settings['lineColor'])
+        self.pen = pg.mkPen(width=self.plot_settings['plotLineWidth'], color=self.plot_settings['lineColor'][0])
         self.plot_zone.plotItem.showGrid(self.plot_settings['verticalGrid'], self.plot_settings['horizontalGrid'],
                                     self.plot_settings['gridOpacity'])
 
@@ -575,6 +571,8 @@ class SettingsDialog(QDialog):
         self.line_color_combo.addItem('magenta')
         self.line_color_combo.addItem('white')
         self.line_color_combo.addItem('yellow')
+        print self.settings['lineColor']
+        self.line_color_combo.setCurrentIndex(self.line_color_combo.findText(self.settings['lineColor']))
 
         self.serial_baud_label = QLabel('Serial Baud')
         self.serial_baud_edit = QLineEdit()
@@ -628,7 +626,7 @@ class SettingsDialog(QDialog):
         self.settings['horizontalGrid'] = self.horizontal_grid_checkbox.isChecked()
         self.settings['verticalGrid'] = self.vertical_grid_checkbox.isChecked()
         self.settings['gridOpacity'] = float(self.grid_opacity_spinbox.value())
-        self.settings['lineColor'] = unicode(self.line_color_combo.currentText())[0]
+        self.settings['lineColor'] = unicode(self.line_color_combo.currentText())
         self.settings['serialBaud'] = int(self.serial_baud_edit.text())
         if len(self.separator_edit.text()) != 1:
             self.settings['separator'] = ' '
