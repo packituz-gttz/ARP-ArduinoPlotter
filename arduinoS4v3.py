@@ -6,6 +6,7 @@ import qrc_resources
 import pyqtgraph as pg
 # TODO pause recording when saving data?
 # TODO reset time (x axis) when recording & refresh plot (done but needs code revision)
+# TODO bar color restore preferences
 # Import for reading Arduino
 import serial
 # Import device list library
@@ -40,6 +41,7 @@ class Window(QMainWindow):
         self.recorded_list = []
         self.record_cell_start = None
         self.record_cell_end = None
+        self.follow_plot = True
 # Window Properties
         self.setWindowTitle("Arduino Plotter")
         self.setWindowIcon(QIcon(":/window_icon.png"))
@@ -182,15 +184,32 @@ class Window(QMainWindow):
         self.info.setToolTip('Help')
         self.info.triggered.connect(self.showInfo)
 
+        # Follow checkbox
+        self.follow_label = QLabel("Follow Plot")
+        self.follow_checkbox = QCheckBox()
+        # self.arduino_combobox.setToolTip('Select Arduino')
+        self.follow_checkbox.setFocusPolicy(Qt.NoFocus)
+        self.follow_checkbox.clicked.connect(self.change_follow_status)
+        self.follow_checkbox.setChecked(True)
+
         arduino_toolbar.addWidget(self.arduino_combobox)
         arduino_toolbar.addAction(self.reload)
         arduino_toolbar.addWidget(self.timer_label)
         arduino_toolbar.addAction(self.info)
+        arduino_toolbar.addWidget(self.follow_checkbox)
+        arduino_toolbar.addWidget(self.follow_label)
 
 # Show Info(Help) dialog
     def showInfo(self):
         self.info_dialog = InfoDialog(self)
         self.info_dialog.show()
+
+    def change_follow_status(self):
+        if self.follow_checkbox.isChecked():
+            self.follow_plot = True
+        else:
+            self.follow_plot = False
+
 
 # Update arduino list
     def updateDevicesList(self):
@@ -273,41 +292,42 @@ class Window(QMainWindow):
             self.sizeLabel.setText('Arduino Connected')
             self.sizeLabel.setStyleSheet('color:green')
             mutex.lock()
-            print ("dasdasd",len(x_arr))
-            print ("self", self.array_len)
+#            print ("dasdasd",len(x_arr))
+#            print ("self", self.array_len)
             #if not len(x_arr) % self.plot_settings['arrayPlotSize'] and len(x_arr) != 0:
             #print self.array_len
             if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
                 self.array_len = len(x_arr)
-                print "ININ"
+#                print "ININ"
                 self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
                                     y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
                 #self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
-                if x_arr[-1:][0] > self.plot_zone.visibleRange().right():
-                    width_visible = self.plot_zone.visibleRange().width()
-                    height_visible = self.plot_zone.visibleRange().height()
-                    bottom_visible = self.plot_zone.visibleRange().top()
-                    # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
-                    print self.plot_zone.visibleRange()
-                    rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
-                    #print rect_me
-                    #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
-                    #self.plot_zone.setRange()
-                    #print "MOVE"
-                    #print bottom_visible
-                    #print height_visible
-                    dest = self.plot_zone.visibleRange().width()
-                    #print range_x
-                    #print dest
-                    #print x_arr[-1:][0]
-                    self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
-                                            xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
-                                            yRange=(bottom_visible, bottom_visible + height_visible))
-                    #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
+                if self.follow_plot:
+                    if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
+                        width_visible = self.plot_zone.visibleRange().width()
+                        height_visible = self.plot_zone.visibleRange().height()
+                        bottom_visible = self.plot_zone.visibleRange().top()
+                        # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
+    #                    print self.plot_zone.visibleRange()
+                        rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
+                        #print rect_me
+                        #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
+                        #self.plot_zone.setRange()
+                        #print "MOVE"
+                        #print bottom_visible
+                        #print height_visible
+                        dest = self.plot_zone.visibleRange().width()
+                        #print range_x
+                        #print dest
+                        #print x_arr[-1:][0]
+                        self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
+                                                xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
+                                                yRange=(bottom_visible, bottom_visible + height_visible))
+                        #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
 
-                    #self.plot_zone.sceneObj.mouseMoveEvent(3)
-                    #print self.plot_zone.visibleRange()
-                    range_me = self.plot_zone.visibleRange()
+                        #self.plot_zone.sceneObj.mouseMoveEvent(3)
+                        #print self.plot_zone.visibleRange()
+                        range_me = self.plot_zone.visibleRange()
 
 
                     #self.plot_zone.sigRangeChanged.connect(self.me)
@@ -322,7 +342,10 @@ class Window(QMainWindow):
         if time_to_display >= 60:
             self.timer_label.setText(' ' + str(time_to_display / 60) + ":" + str(time_to_display % 60))
         else:
-            self.timer_label.setText(" " + '0' + ':' + str(time_to_display))
+            if len(str(time_to_display)) == 1:
+                self.timer_label.setText(" " + '0' + ':0' + str(time_to_display))
+            else:
+                self.timer_label.setText(" " + '0' + ':' + str(time_to_display))
 
 # Call myself every 50milliseconds
         timer = QTimer()
