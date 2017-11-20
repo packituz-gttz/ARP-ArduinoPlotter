@@ -298,7 +298,6 @@ class Window(QMainWindow):
             #print self.array_len
             if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
                 self.array_len = len(x_arr)
-#                print "ININ"
                 try:
                     self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
                                         y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
@@ -307,6 +306,8 @@ class Window(QMainWindow):
                         x_arr.pop()
                     else:
                         y_arr.pop()
+                    self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
+                                        y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
                 #self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
                 if self.follow_plot:
                     if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
