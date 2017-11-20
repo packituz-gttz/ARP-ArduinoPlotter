@@ -1,4 +1,5 @@
 # Import Icons
+import os
 # Import time for x axis
 import time
 import qrc_resources
@@ -298,8 +299,14 @@ class Window(QMainWindow):
             if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
                 self.array_len = len(x_arr)
 #                print "ININ"
-                self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
-                                    y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
+                try:
+                    self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
+                                        y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
+                except Exception:
+                    if len(x_arr) > len(y_arr):
+                        x_arr.pop()
+                    else:
+                        y_arr.pop()
                 #self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
                 if self.follow_plot:
                     if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
@@ -376,7 +383,8 @@ class Window(QMainWindow):
 
 # Save as method
     def saveFileAs(self):
-        self.filename = QFileDialog.getSaveFileName(self, 'Save As', "new_file.dat", "", "", QFileDialog.DontUseNativeDialog)
+        my_home = os.path.expanduser('~')
+        self.filename = QFileDialog.getSaveFileName(self, 'Save As', os.path.join(my_home, "new_file.dat"), "", "", QFileDialog.DontUseNativeDialog)
         self.writeDataToFile('w')
 
 # Write data to file
@@ -448,6 +456,10 @@ class ReadSerialThread(QThread):
 
 # Destroy Thread
     def __del__(self):
+        try:
+            self.serial_connection.close()
+        except AttributeError:
+            pass
         self.terminate()
 
 # Call function that reads Arduino serial input
