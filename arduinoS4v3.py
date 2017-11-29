@@ -299,52 +299,47 @@ class Window(QMainWindow):
             if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
                 self.array_len = len(x_arr)
                 try:
-                    self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
-                                        y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
+                    self.check_array()
                 except Exception:
-                    if len(x_arr) > len(y_arr):
-                        x_arr.pop()
-                    else:
-                        y_arr.pop()
-                    self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
-                                        y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
-                #self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
-                if self.follow_plot:
-                    if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
-                        width_visible = self.plot_zone.visibleRange().width()
-                        height_visible = self.plot_zone.visibleRange().height()
-                        bottom_visible = self.plot_zone.visibleRange().top()
-                        # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
-    #                    print self.plot_zone.visibleRange()
-                        rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
-                        #print rect_me
-                        #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
-                        #self.plot_zone.setRange()
-                        #print "MOVE"
-                        #print bottom_visible
-                        #print height_visible
-                        #dest = self.plot_zone.visibleRange().width()
-                        #print range_x
-                        #print dest
-                        #print x_arr[-1:][0]
-                        self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
-                                                xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
-                                                yRange=(bottom_visible, bottom_visible + height_visible))
-                        #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
+                    pass
+                else:
+                    # self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
+                    if self.follow_plot:
+                        if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
+                            width_visible = self.plot_zone.visibleRange().width()
+                            height_visible = self.plot_zone.visibleRange().height()
+                            bottom_visible = self.plot_zone.visibleRange().top()
+                            # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
+        #                    print self.plot_zone.visibleRange()
+                            rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
+                            #print rect_me
+                            #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
+                            #self.plot_zone.setRange()
+                            #print "MOVE"
+                            #print bottom_visible
+                            #print height_visible
+                            #dest = self.plot_zone.visibleRange().width()
+                            #print range_x
+                            #print dest
+                            #print x_arr[-1:][0]
+                            self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
+                                                    xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
+                                                    yRange=(bottom_visible, bottom_visible + height_visible))
+                            #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
 
                         #self.plot_zone.sceneObj.mouseMoveEvent(3)
                         #print self.plot_zone.visibleRange()
                         #range_me = self.plot_zone.visibleRange()
-
-
+                finally:
+                    mutex.unlock()
                     #self.plot_zone.sigRangeChanged.connect(self.me)
                     #self.plot_zone.sigYRangeChanged.connect(self.me)
-            mutex.unlock()
+
         else:
             self.sizeLabel.setText('Arduino Disconnected')
             self.sizeLabel.setStyleSheet('color:red')
 
-# Updates the GUI timer
+        # Updates the GUI timer
         time_to_display = int(round(time.time() - time_start, 2))
         if time_to_display >= 60:
             self.timer_label.setText(' ' + str(time_to_display / 60) + ":" + str(time_to_display % 60))
@@ -357,6 +352,22 @@ class Window(QMainWindow):
 # Call myself every 50milliseconds
         timer = QTimer()
         timer.singleShot(100, self.update)
+
+    def check_array(self):
+        try:
+            self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
+                                y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
+        except Exception:
+            if len(x_arr) > len(y_arr):
+                trim = len(x_arr) - len(y_arr)
+                del x_arr[-trim:]
+                # x_arr.pop()
+            else:
+                trim = len(y_arr) - len(x_arr)
+                del y_arr[-trim:]
+                # y_arr.pop()
+            self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
+                                y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
 
 # Stops recording
     def stopRecording(self):
