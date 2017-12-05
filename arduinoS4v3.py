@@ -399,8 +399,6 @@ class Window(QMainWindow):
                 mutex.unlock()
 
                 for pair in self.recorded_list:
-                    print (pair[0], pair[1])
-
                     list_x.extend(x__copy[pair[0]:pair[1]])
                     list_y.extend(y__copy[pair[0]:pair[1]])
 
