@@ -17,7 +17,8 @@ from PyQt4.QtGui import (QFileDialog, QGridLayout, QWidget,
                          QMainWindow, QAction, QIcon, QKeySequence,
                          QVBoxLayout, QLabel, QDialog, QDialogButtonBox,
                          QLineEdit, QCheckBox, QRegExpValidator, QFrame,
-                         QDoubleSpinBox, QComboBox, QMessageBox)
+                         QDoubleSpinBox, QComboBox, QMessageBox, QProgressDialog)
+from copy import copy
 
 # Global vars
 mutex = QMutex()
@@ -42,6 +43,7 @@ class Window(QMainWindow):
         self.record_cell_start = None
         self.record_cell_end = None
         self.follow_plot = True
+        self.plot = True
 # Window Properties
         self.setWindowTitle("Arduino Plotter")
         self.setWindowIcon(QIcon(":/window_icon.png"))
@@ -211,7 +213,9 @@ class Window(QMainWindow):
             self.follow_plot = False
 
 
+
 # Update arduino list
+
     def updateDevicesList(self):
         device_list = serial.tools.list_ports.comports()
         current_arduino = self.arduino_combobox.currentText()
@@ -224,6 +228,7 @@ class Window(QMainWindow):
             device_index = device_index + 1
 
 # Update selected arduino
+
     def updateChoosenArduino(self):
         self.restart_values()
 
@@ -247,6 +252,8 @@ class Window(QMainWindow):
             del x_arr[:]
             del y_arr[:]
             self.array_len = 0
+            self.clean_recorded_data = False
+            mutex.unlock()
             width_visible = self.plot_zone.visibleRange().width()
             height_visible = self.plot_zone.visibleRange().height()
             bottom_visible = self.plot_zone.visibleRange().top()
@@ -256,8 +263,6 @@ class Window(QMainWindow):
             self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
                                     xRange=(0, (0 + width_visible)), padding=0,
                                     yRange=(bottom_visible, bottom_visible + height_visible))
-            self.clean_recorded_data = False
-            mutex.unlock()
 
 # Start Recording
         if not self.recording_status:
@@ -271,6 +276,7 @@ class Window(QMainWindow):
             self.recording_status = True
             mutex.unlock()
         else:
+            print "pause"
             # Pause Recording
             self.record_pause.setIcon(QIcon(':/rec.png'))
             status.showMessage('Paused')
@@ -280,66 +286,62 @@ class Window(QMainWindow):
                 self.record_cell_end = len(x_arr) - 1
             else:
                 self.record_cell_end = len(x_arr)
+
             self.recorded_list.append([self.record_cell_start, self.record_cell_end])
+            print self.recorded_list
             self.recording_status = False
             mutex.unlock()
 
 # Update Arduino status and plot
+
     def update(self):
         global x_arr, y_arr, arduino_connected
-#        self.plot_zone.sceneObj.sigMouseHover.connect(self.me)
         if arduino_connected:
             self.sizeLabel.setText('Arduino Connected')
             self.sizeLabel.setStyleSheet('color:green')
             mutex.lock()
-#            print ("dasdasd",len(x_arr))
-#            print ("self", self.array_len)
-            #if not len(x_arr) % self.plot_settings['arrayPlotSize'] and len(x_arr) != 0:
-            #print self.array_len
-            if len(x_arr) - self.array_len >= 50 and len(x_arr) != 0:
-                self.array_len = len(x_arr)
+            x_copy = copy(x_arr)
+            y_copy = copy(y_arr)
+            mutex.unlock()
+            if len(x_copy) - self.array_len >= 50 and len(x_copy) != 0 and self.plot:
+                self.array_len = len(x_copy)
                 try:
-                    self.check_array()
+                    self.plot_zone.plot(x_copy[:-(self.plot_settings['arrayPlotSize'] + 1)],
+                                        y_copy[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
                 except Exception:
-                    pass
+                    mutex.lock()
+                    if len(x_arr) > len(y_arr):
+                        trim = len(x_arr) - len(y_arr)
+                        del x_arr[-trim:]
+                    else:
+                        trim = len(y_arr) - len(x_arr)
+                        del y_arr[-trim:]
+                    mutex.unlock()
                 else:
-                    # self.plot_zone.setXRange(x_arr[-1:][0] - self.plot_zone.visibleRange().width(), x_arr[-1:][0])
                     if self.follow_plot:
-                        if not (self.plot_zone.visibleRange().left() < x_arr[-1:][0] < self.plot_zone.visibleRange().right()):
+                        if not (self.plot_zone.visibleRange().left() < x_copy[-1:][0] < self.plot_zone.visibleRange().right()):
                             width_visible = self.plot_zone.visibleRange().width()
                             height_visible = self.plot_zone.visibleRange().height()
                             bottom_visible = self.plot_zone.visibleRange().top()
-                            # self.plot_zone.visibleRange().setRect(0, 0, 150, 10)
-        #                    print self.plot_zone.visibleRange()
-                            rect_me = QRectF(x_arr[-1:][0], 0, width_visible, 5)
-                            #print rect_me
-                            #self.plot_zone.setXRange(x_arr[-1:][0], x_arr[-1:][0] + self.range_x)
-                            #self.plot_zone.setRange()
-                            #print "MOVE"
-                            #print bottom_visible
-                            #print height_visible
-                            #dest = self.plot_zone.visibleRange().width()
-                            #print range_x
-                            #print dest
-                            #print x_arr[-1:][0]
+                            rect_me = QRectF(x_copy[-1:][0], 0, width_visible, 5)
                             self.plot_zone.setRange(rect=rect_me, disableAutoRange=True,
-                                                    xRange=(x_arr[-1:][0], ( x_arr[-1:][0] + width_visible )), padding=0,
+                                                    xRange=(x_copy[-1:][0], ( x_copy[-1:][0] + width_visible )), padding=0,
                                                     yRange=(bottom_visible, bottom_visible + height_visible))
-                            #self.plot_zone.sceneObj.sigMouseClicked.connect(self.me)
 
-                        #self.plot_zone.sceneObj.mouseMoveEvent(3)
-                        #print self.plot_zone.visibleRange()
-                        #range_me = self.plot_zone.visibleRange()
-                finally:
-                    mutex.unlock()
-                    #self.plot_zone.sigRangeChanged.connect(self.me)
-                    #self.plot_zone.sigYRangeChanged.connect(self.me)
 
         else:
             self.sizeLabel.setText('Arduino Disconnected')
             self.sizeLabel.setStyleSheet('color:red')
 
         # Updates the GUI timer
+        self.updateTimer()
+        # Call myself every 100milliseconds
+        timer = QTimer()
+        timer.singleShot(100, self.update)
+
+
+
+    def updateTimer(self):
         time_to_display = int(round(time.time() - time_start, 2))
         if time_to_display >= 60:
             self.timer_label.setText(' ' + str(time_to_display / 60) + ":" + str(time_to_display % 60))
@@ -349,25 +351,6 @@ class Window(QMainWindow):
             else:
                 self.timer_label.setText(" " + '0' + ':' + str(time_to_display))
 
-# Call myself every 50milliseconds
-        timer = QTimer()
-        timer.singleShot(100, self.update)
-
-    def check_array(self):
-        try:
-            self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
-                                y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
-        except Exception:
-            if len(x_arr) > len(y_arr):
-                trim = len(x_arr) - len(y_arr)
-                del x_arr[-trim:]
-                # x_arr.pop()
-            else:
-                trim = len(y_arr) - len(x_arr)
-                del y_arr[-trim:]
-                # y_arr.pop()
-            self.plot_zone.plot(x_arr[:-(self.plot_settings['arrayPlotSize'] + 1)],
-                                y_arr[:-(self.plot_settings['arrayPlotSize'] + 1)], clear=True, pen=self.pen)
 
 # Stops recording
     def stopRecording(self):
@@ -388,6 +371,7 @@ class Window(QMainWindow):
 
 # Save file method
     def saveFile(self):
+        print self.filename
         if not self.file_saved:
             self.saveFileAs()
         else:
@@ -403,22 +387,71 @@ class Window(QMainWindow):
     def writeDataToFile(self, open_mode):
         global x_arr, y_arr
         try:
+            list_x = []
+            list_y = []
+            listx = []
+            listy = []
             if self.filename:
                 file_obj = open(self.filename, open_mode)
-                for pair in self.recorded_list:
-                    list_x = x_arr[pair[0]:pair[1]]
-                    list_y = y_arr[pair[0]:pair[1]]
+                mutex.lock()
+                x__copy = copy(x_arr)
+                y__copy = copy(y_arr)
+                mutex.unlock()
 
-                    for elem in zip(list_x, list_y):
+                for pair in self.recorded_list:
+                    print (pair[0], pair[1])
+
+                    list_x.extend(x__copy[pair[0]:pair[1]])
+                    list_y.extend(y__copy[pair[0]:pair[1]])
+
+
+#                        file_obj.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
+#                file_obj.close()
+                progressDialog = QProgressDialog()
+                progressDialog.setModal(True)
+                progressDialog.setLabelText('Saving...')
+                progressDialog.setMaximum(len(list_x))
+                progressDialog.setCancelButton(None)
+                #self.save_data = SaveDataThread(listx,
+#                                                   listy, self.plot_settings['separator'], self.filename, self)
+                #self.save_data.start()
+                progressDialog.show()
+                count = 0
+                concat_string = ''
+                mutex.lock()
+                self.plot = False
+                mutex.unlock()
+                #print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+                for elem in zip(list_x, list_y):
 #                       TODO Check if separator works
-                        file_obj.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
-                file_obj.close()
+                    if count == 0:
+                        print (elem[0], elem[1])
+                    #print elem[0]
+                    concat_string = concat_string + str(elem[0]) + str(self.plot_settings['separator'])\
+                                    + str(elem[1]) + '\n'
+
+                    progressDialog.setValue(count)
+                    count += 1
+                #file_obj.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
+                file_obj.write(concat_string)
+                count += 1
                 self.file_saved = True
+                mutex.lock()
+                self.plot = True
+                mutex.unlock()
         except (IOError, OSError) as error_file:
             message = QMessageBox.critical(self, 'Message', str(error_file), QMessageBox.Ok)
 #           message.show()
             self.filename = ''
             self.file_saved = False
+        finally:
+            mutex.lock()
+            self.plot = True
+            mutex.unlock()
+
+
+    def closedialog(self):
+        pass
 
 # Create and show settings dialog
     def changeSettings(self):
@@ -485,9 +518,6 @@ class ReadSerialThread(QThread):
 
                 except serial.SerialException:
                     time.sleep(2)
-
-#                    print (x_arr)
-#                    print (y_arr)
             # Raises if connection couldn't be established
             except AttributeError:
                 pass
@@ -522,17 +552,12 @@ class ReadSerialThread(QThread):
                 else:
                     try:
                         adc = (float(str(serial_data).replace('\r\n', '')) * 5) / 1023
-                        #print adc
-                        #print ("Serial")
-                        #print serial_data
-                        #####y_arr.append(float(str(serial_data).replace('\r\n', '')))
                         y_arr.extend([adc])
-                        #y_arr.append(serial_data)
                     # Raised when garbage was present on the data, deletes the last appended item to preserve
                     # arrays of the same size
                     except ValueError:
                         x_arr.pop()
-                        mutex.unlock()
+                        #mutex.unlock()
                     except UnboundLocalError:
                         pass
                 mutex.unlock()
@@ -541,11 +566,11 @@ class ReadSerialThread(QThread):
         except serial.SerialException:
             print "close"
             mutex.lock()
-            self.serial_connection.close()
+            try:
+                self.serial_connection.close()
+            except OSError:
+                pass
             arduino_connected = False
-            #time_got = time.time() - time_start
-            #x_arr.append(time_got)
-            #y_arr.append(0)
             mutex.unlock()
 
 
@@ -695,3 +720,34 @@ class InfoDialog(QDialog):
         grid.addWidget(self.rights, 3, 0)
         grid.addWidget(self.github, 4, 0)
         self.setLayout(grid)
+
+
+class SaveDataThread(QThread):
+    def __init__(self, listx, listy, separator, filename, parent=None):
+        QThread.__init__(self, parent)
+        self.listx = listx
+        self.listy = listy
+        self.separator = separator
+        self.filename = filename
+
+
+# Destroy Thread
+    def __del__(self):
+        self.terminate()
+
+    def run(self):
+
+        try:
+            print self.filename
+            file_obj = open(self.filename, 'w')
+
+            complete = len(self.listx)
+            for elem in zip(self.listx, self.listy):
+                print elem[0]
+                print elem[1]
+                file_obj.write(str(elem[0]) + self.separator + str(elem[1]) + '\n')
+        except (OSError, IOError):
+            pass
+        finally:
+            file_obj.close()
+        print "saved"
