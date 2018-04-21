@@ -28,6 +28,10 @@ y_arr = []
 arduino_connected = False
 
 
+class StopRecording(Exception):
+    pass
+
+
 # Main Windows
 class Window(QMainWindow):
     def __init__(self, parent=None):
@@ -50,7 +54,7 @@ class Window(QMainWindow):
         self.resize(800, 600)
 # Plot Settings and Creation
         self.plot_settings = dict(plotLineWidth=1, horizontalGrid=True, verticalGrid=True, gridOpacity=1, lineColor='b',
-                                  arrayPlotSize=25, serialBaud=115200, separator=' ')
+                                  arrayPlotSize=25, serialBaud=57600, separator=' ')
         pg.setConfigOption('background', 'w')
         self.load_settings()
         self.createPlot()
@@ -276,7 +280,7 @@ class Window(QMainWindow):
             self.recording_status = True
             mutex.unlock()
         else:
-            print "pause"
+            #print "pause"
             # Pause Recording
             self.record_pause.setIcon(QIcon(':/rec.png'))
             status.showMessage('Paused')
@@ -288,7 +292,7 @@ class Window(QMainWindow):
                 self.record_cell_end = len(x_arr)
 
             self.recorded_list.append([self.record_cell_start, self.record_cell_end])
-            print self.recorded_list
+            #print self.recorded_list
             self.recording_status = False
             mutex.unlock()
 
@@ -371,7 +375,7 @@ class Window(QMainWindow):
 
 # Save file method
     def saveFile(self):
-        print self.filename
+        #print self.filename
         if not self.file_saved:
             self.saveFileAs()
         else:
@@ -387,6 +391,9 @@ class Window(QMainWindow):
     def writeDataToFile(self, open_mode):
         global x_arr, y_arr
         try:
+            mutex.lock()
+            self.read_serial_thread.saving_data = True
+            mutex.unlock()
             list_x = []
             list_y = []
             listx = []
@@ -419,37 +426,33 @@ class Window(QMainWindow):
                 mutex.lock()
                 self.plot = False
                 mutex.unlock()
-                #print "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%"
+
                 for elem in zip(list_x, list_y):
-#                       TODO Check if separator works
-                    if count == 0:
-                        print (elem[0], elem[1])
-                    #print elem[0]
                     concat_string = concat_string + str(elem[0]) + str(self.plot_settings['separator'])\
                                     + str(elem[1]) + '\n'
 
                     progressDialog.setValue(count)
                     count += 1
-                #file_obj.write(str(elem[0]) + self.plot_settings['separator'] + str(elem[1]) + '\n')
                 file_obj.write(concat_string)
+                time.sleep(2)
                 count += 1
                 self.file_saved = True
-                mutex.lock()
-                self.plot = True
-                mutex.unlock()
+                file_obj.close()
+                # mutex.lock()
+                # self.plot = True
+                # self.read_serial_thread.read_data = True
+                # mutex.unlock()
         except (IOError, OSError) as error_file:
             message = QMessageBox.critical(self, 'Message', str(error_file), QMessageBox.Ok)
-#           message.show()
             self.filename = ''
             self.file_saved = False
         finally:
             mutex.lock()
             self.plot = True
+            self.read_serial_thread.saving_data = False
             mutex.unlock()
 
 
-    def closedialog(self):
-        pass
 
 # Create and show settings dialog
     def changeSettings(self):
@@ -484,7 +487,6 @@ class Window(QMainWindow):
                                 xRange=(0, (0 + width_visible)), padding=0,
                                 yRange=(bottom_visible, bottom_visible + height_visible))
         mutex.unlock()
-        #print  "clean out"
         self.read_serial_thread = ReadSerialThread(self.arduino_combobox.currentText(),
                                                    self.plot_settings['serialBaud'], self)
         self.read_serial_thread.start()
@@ -496,6 +498,9 @@ class ReadSerialThread(QThread):
         QThread.__init__(self, parent)
         self.current_arduino = current_arduino
         self.serial_baud = serial_baud
+        mutex.lock()
+        self.saving_data = False
+        mutex.unlock()
 
 # Destroy Thread
     def __del__(self):
@@ -511,8 +516,22 @@ class ReadSerialThread(QThread):
             try:
                 try:
                     # Waits input for 1 sec
-                    self.serial_connection = serial.Serial(unicode(self.current_arduino), self.serial_baud, timeout=1)
-                    self.readSerialData()
+                    mutex.lock()
+                    if not self.saving_data:
+                        mutex.unlock()
+                        # self.serial_connection = serial.Serial(unicode(self.current_arduino), self.serial_baud, timeout=1)
+                        self.serial_connection = serial.Serial()
+                        self.serial_connection.port = str(self.current_arduino)
+                        print self.serial_baud
+                        self.serial_connection.baudrate = self.serial_baud
+                        self.serial_connection.timeout = 1
+                        self.serial_connection.setDTR(False)
+                        self.serial_connection.setRTS(False)
+                        self.serial_connection.open()
+                        self.readSerialData()
+                    else:
+                        mutex.unlock()
+                        time.sleep(1)
 
                 except serial.SerialException:
                     time.sleep(2)
@@ -528,29 +547,34 @@ class ReadSerialThread(QThread):
             arduino_connected = True
             mutex.unlock()
             while True:
+                mutex.lock()
+                if self.saving_data:
+                    mutex.unlock()
+                    raise StopRecording
+                mutex.unlock()
                 # Read arduino data from serial
                 serial_data = self.serial_connection.readline()
                 mutex.lock()
+
                 try:
-#                    print (serial_data)
-#                    sec, data =serial_data.split(',')
-#                    print x_arr
-#                    print serial_data
                     if not x_arr:
-                        #x_arr.append(0.5)
                         x_arr.extend([0.1])
                     else:
-                        #x_arr.append(x_arr[-1:][0] + 0.5)
                         x_arr.extend([x_arr[-1:][0] + 0.1])
-#                    print (x_arr[-1:], serial_data)
                 except ValueError:
                     pass
                 except IOError:
                     pass
                 else:
                     try:
-                        adc = (float(str(serial_data).replace('\r\n', '')) * 5) / 1023
-                        y_arr.extend([adc])
+                        adc = (float(serial_data) * 5) / 1023
+                        # if adc < 0 or adc > 5:
+                        #     raise ValueError()
+                        print int(serial_data)
+
+                        #adc = float(str(serial_data).replace('\r\n', ''))
+                        y_arr.extend([float(adc)])
+
                     # Raised when garbage was present on the data, deletes the last appended item to preserve
                     # arrays of the same size
                     except ValueError:
@@ -558,6 +582,8 @@ class ReadSerialThread(QThread):
                         #mutex.unlock()
                     except UnboundLocalError:
                         pass
+
+                # print (x_arr[-1:], y_arr[-1:])
                 mutex.unlock()
 
         # Raised when connection is lost
@@ -569,6 +595,19 @@ class ReadSerialThread(QThread):
             except OSError:
                 pass
             arduino_connected = False
+            mutex.unlock()
+        except StopRecording:
+            print "close too"
+            mutex.lock()
+            arduino_connected = False
+            try:
+                self.serial_connection.flushInput()
+                self.serial_connection.flushOutput()
+                self.serial_connection.flush()
+                self.serial_connection.close()
+            except OSError:
+                pass
+
             mutex.unlock()
 
 
@@ -684,7 +723,7 @@ class SettingsDialog(QDialog):
 # Restores default settings values
     def restore_defaults(self):
         default_values = dict(plotLineWidth=1, horizontalGrid=True, verticalGrid=True, gridOpacity=1, lineColor='b',
-             arrayPlotSize=25, serialBaud=115200, separator=' ')
+             arrayPlotSize=25, serialBaud=57600, separator=' ')
         self.settings.update(default_values)
         self.callback()
         self.line_width_edit.setText(str(self.settings['plotLineWidth']))
@@ -736,16 +775,18 @@ class SaveDataThread(QThread):
     def run(self):
 
         try:
-            print self.filename
+            #print self.filename
             file_obj = open(self.filename, 'w')
-
+            string_to_write = ''
             complete = len(self.listx)
             for elem in zip(self.listx, self.listy):
-                print elem[0]
-                print elem[1]
-                file_obj.write(str(elem[0]) + self.separator + str(elem[1]) + '\n')
+                #print elem[0]
+                #print elem[1]
+                # file_obj.write(str(elem[0]) + self.separator + str(elem[1]) + '\n')
+                string_to_write += (str(elem[0]) + self.separator + str(elem[1]) + '\n')
+            file_obj.write(string_to_write)
         except (OSError, IOError):
             pass
         finally:
             file_obj.close()
-        print "saved"
+        #print "saved"
